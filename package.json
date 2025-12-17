@@ -1,0 +1,24 @@
+{
+  "name": "yt-rip",
+  "version": "1.0.0",
+  "description": "YouTube to MP3/MP4 downloader using ytmp3.as API",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "server": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "youtube",
+    "mp3",
+    "mp4",
+    "downloader",
+    "converter"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=12.0.0"
+  }
+}
+

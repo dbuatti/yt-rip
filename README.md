@@ -1,6 +1,6 @@
 # yt-rip
 
-A Node.js application that mimics the ytmp3.as API to download YouTube videos as MP3 (audio) or MP4 (video) files.
+A Node.js (Express.js) application that mimics the ytmp3.as API to download YouTube videos as MP3 (audio) or MP4 (video) files.
 
 ## Features
 
@@ -8,10 +8,18 @@ A Node.js application that mimics the ytmp3.as API to download YouTube videos as
 - Automatic progress tracking
 - Handles API redirects
 - Simple CLI interface
+- Dynamically mimics the latest obfuscated auth challenge from ytmp3.as (auto-updates)
 
 ## Installation
 
-No dependencies required! Uses only Node.js built-in modules.
+1. **Clone the repository** (or download the source).
+2. **Install dependencies** (Express, Cheerio, etc.):
+
+```bash
+npm install
+```
+
+3. Make sure you have **Node.js 12.0.0 or higher** installed (preferably a modern LTS).
 
 ## Usage
 
@@ -33,35 +41,35 @@ The web interface features:
 - Simple URL input and format selection
 - Real-time download progress
 
-### Command Line
+### Command Line (CLI)
 
 ```bash
-node index.js <youtube-url> [format]
+node cli.js <youtube-url> [format]
 ```
 
 **Examples:**
 
 ```bash
 # Download as MP3 (default)
-node index.js https://www.youtube.com/watch?v=dQw4w9WgXcQ
+node cli.js https://www.youtube.com/watch?v=dQw4w9WgXcQ
 
 # Download as MP3 (explicit)
-node index.js https://www.youtube.com/watch?v=dQw4w9WgXcQ mp3
+node cli.js https://www.youtube.com/watch?v=dQw4w9WgXcQ mp3
 
 # Download as MP4
-node index.js https://www.youtube.com/watch?v=dQw4w9WgXcQ mp4
+node cli.js https://www.youtube.com/watch?v=dQw4w9WgXcQ mp4
 
 # Short URL support
-node index.js https://youtu.be/dQw4w9WgXcQ mp3
+node cli.js https://youtu.be/dQw4w9WgXcQ mp3
 
 # YouTube Shorts support
-node index.js https://www.youtube.com/shorts/dQw4w9WgXcQ mp3
+node cli.js https://www.youtube.com/shorts/dQw4w9WgXcQ mp3
 ```
 
 ### Programmatic Usage
 
 ```javascript
-const { downloadYouTubeVideo } = require('./index.js');
+const { downloadYouTubeVideo } = require('./utils/converter');
 
 async function main() {
     try {
@@ -80,13 +88,21 @@ main();
 
 ## How It Works
 
-The application mimics the exact API flow used by ytmp3.as:
+The application mimics the exact API flow used by ytmp3.as and keeps up with their obfuscation:
 
-1. **Extract Video ID** - Parses the YouTube URL to extract the video ID
-2. **Initialize** - Calls the init API endpoint with authorization
-3. **Convert** - Calls the convert API endpoint (handles redirects if needed)
-4. **Poll Progress** - Continuously checks conversion progress
-5. **Download** - Downloads the converted file when ready
+1. **Dynamic config scraping (gC)**  
+   - On first use (and then at most once per hour), the backend fetches the live `AOPR` page from `ytmp3.as`.
+   - It uses `cheerio` (BeautifulSoup-equivalent for Node) to locate the inline script that defines the obfuscated `gC` config and the helper `gC.d` function.
+   - That script is executed in a sandbox (`vm` module) to reconstruct the current `gC` object, the active parameter name (`p`, `r`, etc.), and the exact authorization algorithm.
+   - The resolved config is cached in memory for **1 hour (TTL)** so the site isn’t scraped on every request.
+
+2. **Extract Video ID** – Parses the YouTube URL to extract the video ID (watch, youtu.be, shorts)
+3. **Initialize** – Calls the init API endpoint with the dynamically generated authorization token and current parameter name
+4. **Convert** – Calls the convert API endpoint (handles redirects if needed)
+5. **Poll Progress** – Continuously checks conversion progress when required
+6. **Download** – Builds the final download URL and either:
+   - Returns the **direct gammacloud URL** to the client, or
+   - Uses the internal streaming endpoint as a proxy (useful for cURL, testing, or if you want to hide the direct URL)
 
 ## Supported URL Formats
 
@@ -114,8 +130,8 @@ Yes! Once the server is running, you can send requests via Postman, cURL, or any
 
 ### API Endpoints
 
-**POST** `http://localhost:3000/api/download` - Get download URL  
-**GET** `http://localhost:3000/api/stream?url=...&filename=...` - Stream/download file
+**POST** `http://localhost:3000/api/download` - Get download URLs (direct + stream)  
+**GET** `http://localhost:3000/api/stream?url=...&filename=...` - Stream/download file via this server (optional)
 
 ### Request Body (for POST)
 
@@ -204,7 +220,8 @@ curl -O -J "http://localhost:3000${DOWNLOAD_URL}"
 {
   "success": true,
   "filename": "Video_Title.mp3",
-  "downloadUrl": "/api/stream?url=https://...&filename=Video_Title.mp3"
+  "downloadUrl": "/api/stream?url=https://...&filename=Video_Title.mp3",
+  "directUrl": "https://occooo.gammacloud.net/api/v1/download?sig=..."
 }
 ```
 
@@ -216,15 +233,18 @@ curl -O -J "http://localhost:3000${DOWNLOAD_URL}"
 }
 ```
 
-### How It Works
+### How It Works (API Response Usage)
 
-- **Browser**: When you use the web UI, the browser automatically follows the `downloadUrl` and triggers a download dialog. The file saves to your browser's default download folder.
+- **Browser (Web UI)**:  
+  - The frontend prefers the **`directUrl`** when available and triggers a download directly from the gammacloud host, so the file is downloaded straight to the user’s browser without proxying through this server.
+  - The internal `downloadUrl` (`/api/stream?...`) is kept as a fallback and for advanced use cases.
 
 - **cURL/Postman**: 
-  - The POST request returns a `downloadUrl` 
-  - You then GET that URL to download the file
-  - With `curl -O -J`, the file saves to your current directory with the correct filename
-  - The `-O` flag saves with remote filename, `-J` uses the filename from `Content-Disposition` header
+  - The POST request returns both a `downloadUrl` (local stream endpoint) and a `directUrl` (raw gammacloud URL).
+  - You can either:
+    - `GET` the `downloadUrl` via this server, **or**
+    - `GET` the `directUrl` directly from gammacloud.
+  - With `curl -O -J`, the file saves to your current directory with the correct filename (`-O` saves, `-J` uses the filename from the `Content-Disposition` header).
 
 ### Complete Flow Example
 

@@ -388,11 +388,14 @@
                     throw new Error(data.error || 'Download failed');
                 }
 
+                // Prefer direct URL from gammacloud when available
+                const directUrl = data.directUrl || data.downloadUrl;
+
                 showStatus(`Starting download: ${data.filename}`, 'success');
                 
-                // Trigger browser download
+                // Trigger browser download directly from gammacloud
                 const downloadLink = document.createElement('a');
-                downloadLink.href = data.downloadUrl;
+                downloadLink.href = directUrl;
                 downloadLink.download = data.filename;
                 downloadLink.style.display = 'none';
                 document.body.appendChild(downloadLink);

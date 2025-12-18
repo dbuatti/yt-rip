@@ -1,25 +1,51 @@
-# yt-rip
+# yt-rip 🔊
 
-A Node.js (Express.js) application that mimics the ytmp3.as API to download YouTube videos as MP3 (audio) or MP4 (video) files.
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Node Version](https://img.shields.io/badge/node-%3E%3D12.0.0-brightgreen.svg?logo=node.js)
+![Express](https://img.shields.io/badge/Express.js-4.x-000000?logo=express&logoColor=white)
+![Cheerio](https://img.shields.io/badge/HTML-cheerio-3E63DD)
+
+A Node.js (Express.js) application that mimics the public API behavior of `ytmp3.as` to download YouTube videos as MP3 (audio) or MP4 (video) files.  
+It provides a clean, mobile‑first UI and a developer‑friendly API while keeping all reverse‑engineering logic on the backend.
 
 ## Features
 
-- Download YouTube videos as MP3 or MP4
-- Automatic progress tracking
-- Handles API redirects
-- Simple CLI interface
-- Dynamically mimics the latest obfuscated auth challenge from ytmp3.as (auto-updates)
+- **YouTube to MP3/MP4** – Paste a YouTube URL and download as MP3 (audio) or MP4 (video).
+- **Automatic progress tracking** – Mirrors the “checking / extracting / converting” flow of ytmp3.as.
+- **Redirect & signature handling** – Follows the multi‑host gammacloud URLs and redirects automatically.
+- **Dynamic obfuscation handling** – Scrapes and evaluates the latest obfuscated config (`gC`) from ytmp3.as (1‑hour TTL).
+- **Modern UI** – Minimal, mobile‑first interface with a dark/light theme toggle.
+- **CLI + API** – Use from the terminal (`cli.js`) or via a simple JSON API.
+- **Test/demo mode** – Optional `TEST_MODE` flag to disable real conversions on public deployments.
 
 ## Installation
 
-1. **Clone the repository** (or download the source).
-2. **Install dependencies** (Express, Cheerio, etc.):
+### Prerequisites
 
-```bash
-npm install
-```
+- **Node.js**: 12.0.0 or higher (LTS recommended)
+- **npm**: bundled with Node.js
 
-3. Make sure you have **Node.js 12.0.0 or higher** installed (preferably a modern LTS).
+### Setup
+
+1. **Clone and install**
+
+   ```bash
+   git clone https://github.com/0xaadesh/yt-rip
+   cd yt-rip
+   npm install
+   ```
+
+2. **Environment configuration (optional, for demo mode)**
+
+   Create a `.env` file in the project root if you want to enable demo/test mode (for hosted deployments):
+
+   ```env
+   TEST_MODE=true
+   PORT=3000
+   ```
+
+   - `TEST_MODE=true` → demo/test mode (no real conversions, safe for public hosting)
+   - `TEST_MODE=false` or unset → full functionality (real conversions)
 
 ## Usage
 
@@ -33,13 +59,27 @@ npm run server
 node server.js
 ```
 
-Then open your browser to `http://localhost:3000`
+Then open your browser to `http://localhost:3000`.
 
 The web interface features:
 - Beautiful, minimalistic mobile-first design
 - Dark/light mode toggle
 - Simple URL input and format selection
 - Real-time download progress
+
+#### Demo vs Local Mode
+
+- **Hosted demo / test mode (`TEST_MODE=true`)**
+  - Real conversions are **disabled** – `/api/download` returns a clear test‑mode message instead of calling the third‑party API.
+  - The web UI shows a **“Test mode”** badge next to the title and an extra footer message explaining:
+    - This project involves reverse‑engineering a third‑party service.
+    - The public deployment runs in test mode only to avoid facilitating copyright infringement.
+    - Full functionality is available when run locally for educational purposes.
+
+- **Local development / full mode (`TEST_MODE` unset or `false`)**
+  - The backend dynamically scrapes the latest obfuscated config from ytmp3.as.
+  - Conversions and downloads work end‑to‑end.
+  - No test‑mode badge or extra footer warning is shown.
 
 ### Command Line (CLI)
 
@@ -72,37 +112,50 @@ node cli.js https://www.youtube.com/shorts/dQw4w9WgXcQ mp3
 const { downloadYouTubeVideo } = require('./utils/converter');
 
 async function main() {
-    try {
-        const filepath = await downloadYouTubeVideo(
-            'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-            'mp3'
-        );
-        console.log('Downloaded to:', filepath);
-    } catch (error) {
-        console.error('Error:', error.message);
-    }
+  try {
+    const filepath = await downloadYouTubeVideo(
+      'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+      'mp3'
+    );
+    console.log('Downloaded to:', filepath);
+  } catch (error) {
+    console.error('Error:', error.message);
+  }
 }
 
 main();
 ```
 
-## How It Works
+## How It Works (Internals)
 
-The application mimics the exact API flow used by ytmp3.as and keeps up with their obfuscation:
+yt-rip mirrors the internal browser→backend flow used by ytmp3.as, but with a dynamic obfuscation layer:
 
-1. **Dynamic config scraping (gC)**  
+1. **Dynamic config scraping (`gC`)**
    - On first use (and then at most once per hour), the backend fetches the live `AOPR` page from `ytmp3.as`.
    - It uses `cheerio` (BeautifulSoup-equivalent for Node) to locate the inline script that defines the obfuscated `gC` config and the helper `gC.d` function.
    - That script is executed in a sandbox (`vm` module) to reconstruct the current `gC` object, the active parameter name (`p`, `r`, etc.), and the exact authorization algorithm.
    - The resolved config is cached in memory for **1 hour (TTL)** so the site isn’t scraped on every request.
 
-2. **Extract Video ID** – Parses the YouTube URL to extract the video ID (watch, youtu.be, shorts)
-3. **Initialize** – Calls the init API endpoint with the dynamically generated authorization token and current parameter name
-4. **Convert** – Calls the convert API endpoint (handles redirects if needed)
-5. **Poll Progress** – Continuously checks conversion progress when required
-6. **Download** – Builds the final download URL and either:
-   - Returns the **direct gammacloud URL** to the client, or
-   - Uses the internal streaming endpoint as a proxy (useful for cURL, testing, or if you want to hide the direct URL)
+2. **Extract Video ID**
+   - Parses the YouTube URL to extract the video ID.
+   - Supports `watch`, `youtu.be`, and `shorts` formats.
+
+3. **Initialize**
+   - Calls the `init` API endpoint with:
+     - The dynamically generated authorization token (derived from `gC`).
+     - The current parameter name decoded from `gC` (`p`, `r`, etc.).
+
+4. **Convert**
+   - Calls the `convert` endpoint returned by `init`.
+   - Handles redirects across different gammacloud subdomains.
+
+5. **Poll Progress**
+   - When the backend reports a `progressURL`, yt-rip periodically polls it until conversion is complete.
+
+6. **Download URL**
+   - Builds the final download URL and returns:
+     - The **direct gammacloud URL** to the client (`directUrl`), and
+     - A proxied streaming URL via this server (`downloadUrl` → `/api/stream?...`), useful for cURL or when you want to hide the direct URL.
 
 ## Supported URL Formats
 
@@ -112,7 +165,7 @@ The application mimics the exact API flow used by ytmp3.as and keeps up with the
 
 ## Output
 
-Files are saved in the current working directory with the format:
+Files are saved in the current working directory (CLI) or your browser’s download folder (web UI) with:
 - `{video-title}.mp3` or `{video-title}.mp4`
 - If title is unavailable: `{video-id}.mp3` or `{video-id}.mp4`
 
@@ -123,15 +176,12 @@ Files are saved in the current working directory with the format:
 
 ## API Usage (Postman/cURL)
 
-Yes! Once the server is running, you can send requests via Postman, cURL, or any HTTP client. The API uses a two-step process:
-
-1. **POST to `/api/download`** - Gets the download URL
-2. **GET the stream URL** - Downloads the file directly to your client
+Once the server is running, you can send requests via Postman, cURL, or any HTTP client.
 
 ### API Endpoints
 
-**POST** `http://localhost:3000/api/download` - Get download URLs (direct + stream)  
-**GET** `http://localhost:3000/api/stream?url=...&filename=...` - Stream/download file via this server (optional)
+- **POST** `http://localhost:3000/api/download` – Get download URLs (direct + stream)
+- **GET** `http://localhost:3000/api/stream?url=...&filename=...` – Stream/download file via this server (optional)
 
 ### Request Body (for POST)
 
@@ -142,9 +192,7 @@ Yes! Once the server is running, you can send requests via Postman, cURL, or any
 }
 ```
 
-### cURL Examples
-
-#### Two-Step Process (Recommended)
+### Example Flow
 
 **Step 1: Get download URL**
 ```bash
@@ -153,69 +201,7 @@ curl -X POST http://localhost:3000/api/download \
   -d '{"url":"https://www.youtube.com/watch?v=dQw4w9WgXcQ","format":"mp3"}'
 ```
 
-**Response:**
-```json
-{
-  "success": true,
-  "filename": "Video_Title.mp3",
-  "downloadUrl": "/api/stream?url=https://...&filename=Video_Title.mp3"
-}
-```
-
-**Step 2: Download the file**
-```bash
-# Use the downloadUrl from step 1
-curl -O -J "http://localhost:3000/api/stream?url=https://...&filename=Video_Title.mp3"
-```
-
-#### One-Liner (Bash)
-
-**Download as MP3:**
-```bash
-# Get URL and download in one command
-DOWNLOAD_URL=$(curl -s -X POST http://localhost:3000/api/download \
-  -H "Content-Type: application/json" \
-  -d '{"url":"https://www.youtube.com/watch?v=dQw4w9WgXcQ","format":"mp3"}' \
-  | grep -o '"downloadUrl":"[^"]*' | cut -d'"' -f4)
-
-curl -O -J "http://localhost:3000${DOWNLOAD_URL}"
-```
-
-**Download as MP4:**
-```bash
-DOWNLOAD_URL=$(curl -s -X POST http://localhost:3000/api/download \
-  -H "Content-Type: application/json" \
-  -d '{"url":"https://www.youtube.com/watch?v=dQw4w9WgXcQ","format":"mp4"}' \
-  | grep -o '"downloadUrl":"[^"]*' | cut -d'"' -f4)
-
-curl -O -J "http://localhost:3000${DOWNLOAD_URL}"
-```
-
-**With YouTube Shorts:**
-```bash
-DOWNLOAD_URL=$(curl -s -X POST http://localhost:3000/api/download \
-  -H "Content-Type: application/json" \
-  -d '{"url":"https://www.youtube.com/shorts/VIDEO_ID","format":"mp3"}' \
-  | grep -o '"downloadUrl":"[^"]*' | cut -d'"' -f4)
-
-curl -O -J "http://localhost:3000${DOWNLOAD_URL}"
-```
-
-#### Using jq (if installed)
-
-```bash
-# More reliable parsing with jq
-DOWNLOAD_URL=$(curl -s -X POST http://localhost:3000/api/download \
-  -H "Content-Type: application/json" \
-  -d '{"url":"https://www.youtube.com/watch?v=dQw4w9WgXcQ","format":"mp3"}' \
-  | jq -r '.downloadUrl')
-
-curl -O -J "http://localhost:3000${DOWNLOAD_URL}"
-```
-
-### Response Format
-
-**Success (from POST /api/download):**
+**Example success response:**
 ```json
 {
   "success": true,
@@ -225,48 +211,45 @@ curl -O -J "http://localhost:3000${DOWNLOAD_URL}"
 }
 ```
 
-**Error:**
-```json
-{
-  "success": false,
-  "error": "Error message here"
-}
-```
-
-### How It Works (API Response Usage)
-
-- **Browser (Web UI)**:  
-  - The frontend prefers the **`directUrl`** when available and triggers a download directly from the gammacloud host, so the file is downloaded straight to the user’s browser without proxying through this server.
-  - The internal `downloadUrl` (`/api/stream?...`) is kept as a fallback and for advanced use cases.
-
-- **cURL/Postman**: 
-  - The POST request returns both a `downloadUrl` (local stream endpoint) and a `directUrl` (raw gammacloud URL).
-  - You can either:
-    - `GET` the `downloadUrl` via this server, **or**
-    - `GET` the `directUrl` directly from gammacloud.
-  - With `curl -O -J`, the file saves to your current directory with the correct filename (`-O` saves, `-J` uses the filename from the `Content-Disposition` header).
-
-### Complete Flow Example
-
+**Step 2: Download the file via the proxy**
 ```bash
-# 1. Start the server
-node server.js
-
-# 2. In another terminal, get download URL
-RESPONSE=$(curl -s -X POST http://localhost:3000/api/download \
-  -H "Content-Type: application/json" \
-  -d '{"url":"https://www.youtube.com/watch?v=dQw4w9WgXcQ","format":"mp3"}')
-
-# 3. Extract download URL (using jq if available, or grep)
-DOWNLOAD_URL=$(echo $RESPONSE | jq -r '.downloadUrl')
-# OR without jq:
-# DOWNLOAD_URL=$(echo $RESPONSE | grep -o '"downloadUrl":"[^"]*' | cut -d'"' -f4)
-
-# 4. Download the file
+DOWNLOAD_URL="/api/stream?url=https://...&filename=Video_Title.mp3"
 curl -O -J "http://localhost:3000${DOWNLOAD_URL}"
-
-# File will be saved in your current directory
 ```
+
+**Or download directly from gammacloud:**
+```bash
+DIRECT_URL="https://occooo.gammacloud.net/api/v1/download?sig=..."
+curl -O -J "${DIRECT_URL}"
+```
+
+## Project Structure
+
+```text
+yt-rip/
+├── cli.js              # CLI entry point
+├── server.js           # Express server (web UI + API + test mode)
+├── public/
+│   ├── index.html      # Main frontend (converter UI)
+│   └── about.html      # About & disclaimer page
+├── utils/
+│   ├── config.js       # gC scraping, authorization, timestamp helpers
+│   ├── http.js         # HTTP wrapper that mimics browser headers
+│   ├── youtube.js      # YouTube URL parsing
+│   └── converter.js    # Core init/convert/progress/download logic
+├── package.json        # Node.js metadata & dependencies
+├── package-lock.json   # Locked dependency versions
+├── LICENSE             # MIT license + additional disclaimer
+└── .env.example?       # (optional) example env file
+```
+
+## Dependencies
+
+- **Express** – Web framework for building the HTTP server and API.
+- **Cheerio** – HTML parsing and scraping (for the obfuscated config).
+- **dotenv** – Environment variable loading (`.env`) for `TEST_MODE`, `PORT`, etc.
+
+All dependencies are managed via `package.json` and `package-lock.json`.
 
 ## Important Disclaimer
 
@@ -278,7 +261,7 @@ curl -O -J "http://localhost:3000${DOWNLOAD_URL}"
   - How web APIs work
   - Reverse engineering of public APIs
   - HTTP request/response handling
-  - Node.js server development
+  - Node.js/Express server development
   - Web scraping and API interaction patterns
 
 - **Better Developer Access**: The purpose is to provide developers with a programmatic interface to understand and learn from the API patterns used by existing public services, making it easier to integrate similar functionality into their own projects for legitimate use cases.

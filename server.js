@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const https = require('https');
 const http = require('http');
@@ -5,6 +6,7 @@ const path = require('path');
 const { getDownloadUrl } = require('./utils/converter');
 
 const PORT = process.env.PORT || 3000;
+const TEST_MODE = process.env.TEST_MODE === 'true';
 const PUBLIC_DIR = path.join(__dirname, 'public');
 
 const app = express();
@@ -26,6 +28,11 @@ app.use((req, res, next) => {
 // Serve static assets
 app.use(express.static(PUBLIC_DIR));
 
+// Simple config endpoint so the frontend knows if test mode is enabled
+app.get('/api/config', (req, res) => {
+    res.json({ testMode: TEST_MODE });
+});
+
 // API endpoint for downloads - returns download URL for browser
 app.post('/api/download', async (req, res) => {
     try {
@@ -33,6 +40,15 @@ app.post('/api/download', async (req, res) => {
 
         if (!url) {
             return res.status(400).json({ error: 'URL is required' });
+        }
+
+        // When running in TEST_MODE, mock the conversion and avoid real network calls
+        if (TEST_MODE) {
+            return res.status(200).json({
+                success: false,
+                testMode: true,
+                error: 'Conversion is disabled in this hosted demo (test mode). Run yt-rip locally for full functionality.'
+            });
         }
 
         try {

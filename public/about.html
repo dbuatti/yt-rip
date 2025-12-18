@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>yt-rip – About & Disclaimer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f5f5f5;
+            --text-primary: #000000;
+            --text-secondary: #666666;
+            --accent: #000000;
+            --border: #e0e0e0;
+            --input-bg: #ffffff;
+            --button-bg: #000000;
+            --button-text: #ffffff;
+            --button-hover: #333333;
+            --toggle-active: #000000;
+            --toggle-inactive: #e0e0e0;
+        }
+
+        [data-theme="dark"] {
+            --bg-primary: #121212;
+            --bg-secondary: #1e1e1e;
+            --text-primary: #ffffff;
+            --text-secondary: #b0b0b0;
+            --accent: #ffffff;
+            --border: #333333;
+            --input-bg: #1e1e1e;
+            --button-bg: #ffffff;
+            --button-text: #000000;
+            --button-hover: #e0e0e0;
+            --toggle-active: #ffffff;
+            --toggle-inactive: #333333;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        .container {
+            max-width: 600px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 20px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+        }
+
+        .title {
+            font-size: 24px;
+            font-weight: 600;
+            letter-spacing: -0.5px;
+        }
+
+        .theme-toggle {
+            width: 48px;
+            height: 48px;
+            background-color: var(--bg-secondary);
+            border: 2px solid var(--border);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.2s ease, border-color 0.2s ease;
+        }
+
+        .theme-toggle:hover {
+            background-color: var(--border);
+        }
+
+        .theme-toggle svg {
+            width: 24px;
+            height: 24px;
+            fill: var(--text-primary);
+        }
+
+        .content {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border);
+            padding: 20px;
+            font-size: 14px;
+        }
+
+        h1 {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        h2 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-top: 16px;
+            margin-bottom: 8px;
+        }
+
+        p {
+            font-size: 14px;
+            line-height: 1.6;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+
+        ul {
+            list-style: disc;
+            padding-left: 16px;
+            margin: 8px 0 12px 0;
+        }
+
+        li {
+            font-size: 14px;
+            line-height: 1.6;
+            color: var(--text-secondary);
+        }
+
+        a {
+            color: var(--text-secondary);
+            text-decoration: underline;
+        }
+
+        .back {
+            margin-top: 12px;
+            font-size: 14px;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        @media (min-width: 768px) {
+            .container {
+                padding: 40px;
+            }
+
+            .title {
+                font-size: 28px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="title">yt-rip</h1>
+            <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+                <svg id="sunIcon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 2.25a.75.75 0 01.75.75v2.25a.75.75 0 01-1.5 0V3a.75.75 0 01.75-.75zM7.5 12a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM18.894 6.166a.75.75 0 00-1.06-1.06l-1.591 1.59a.75.75 0 101.06 1.061l1.591-1.59zM21.75 12a.75.75 0 01-.75.75h-2.25a.75.75 0 010-1.5H21a.75.75 0 01.75.75zM17.834 18.894a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 10-1.061 1.06l1.59 1.591zM12 18a.75.75 0 01.75.75V21a.75.75 0 01-1.5 0v-2.25A.75.75 0 0112 18zM7.758 17.303a.75.75 0 00-1.061-1.06l-1.591 1.59a.75.75 0 001.06 1.061l1.591-1.59zM6 12a.75.75 0 01-.75.75H3a.75.75 0 010-1.5h2.25A.75.75 0 016 12zM6.697 7.757a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 00-1.061 1.06l1.59 1.591z"/>
+                </svg>
+                <svg id="moonIcon" class="hidden" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M9.528 1.718a.75.75 0 01.162.819A8.97 8.97 0 009 6a9 9 0 009 9 8.97 8.97 0 003.463-.69.75.75 0 01.981.98 10 10 0 01-9.694 6.46c-5.799 0-10.5-4.701-10.5-10.5 0-4.368 2.667-8.112 6.46-9.694a.75.75 0 01.818.162z"/>
+                </svg>
+            </button>
+        </div>
+
+        <div class="content">
+            <h1>About & Disclaimer</h1>
+
+            <p>
+                <strong>yt-rip</strong> is an independent, simplified frontend that programmatically mimics the public API
+                behavior of <code>ytmp3.as</code>. It exists because I enjoy reverse engineering and wanted a clean,
+                minimal UI and a developer‑friendly API to study how such services work.
+            </p>
+
+            <h2>Educational Purpose Only</h2>
+            <p>
+                This project is built <strong>solely for educational and research purposes</strong>. It is intended to help
+                developers understand:
+            </p>
+            <ul>
+                <li>How browser frontends talk to backend converter APIs</li>
+                <li>How obfuscated configuration and authorization flows can be reverse engineered</li>
+                <li>How to build Node.js/Express services and simple web UIs</li>
+            </ul>
+
+            <h2>No Endorsement or Affiliation</h2>
+            <p>
+                This project is <strong>not affiliated with, endorsed by, or officially connected to ytmp3.as</strong> or
+                any of its operators. It simply observes and reproduces the behavior of public network requests that any
+                browser can already make.
+            </p>
+
+            <h2>Your Responsibility</h2>
+            <p>
+                By using this project you agree that:
+            </p>
+            <ul>
+                <li>You are solely responsible for complying with YouTube’s Terms of Service and all applicable laws.</li>
+                <li>You will only download content you have the legal right and permission to download.</li>
+                <li>You will use this project ethically and for legitimate purposes only.</li>
+            </ul>
+
+            <p>
+                The author does <strong>not</strong> encourage or condone copyright infringement or any illegal use of this
+                project. The software is provided “as is”, without any warranty, and use is entirely at your own risk.
+            </p>
+
+            <p class="back">
+                <a href="/">← Back to converter</a>
+            </p>
+        </div>
+    </div>
+
+    <script>
+        const themeToggle = document.getElementById('themeToggle');
+        const sunIcon = document.getElementById('sunIcon');
+        const moonIcon = document.getElementById('moonIcon');
+        const html = document.documentElement;
+
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        html.setAttribute('data-theme', savedTheme);
+        updateThemeIcon(savedTheme);
+
+        themeToggle.addEventListener('click', () => {
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateThemeIcon(newTheme);
+        });
+
+        function updateThemeIcon(theme) {
+            if (theme === 'dark') {
+                sunIcon.classList.remove('hidden');
+                moonIcon.classList.add('hidden');
+            } else {
+                sunIcon.classList.add('hidden');
+                moonIcon.classList.remove('hidden');
+            }
+        }
+    </script>
+</body>
+</html>

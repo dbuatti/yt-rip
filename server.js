@@ -1,92 +1,75 @@
 require('dotenv').config();
 const express = require('express');
+const cors = require('cors');
 const https = require('https');
 const http = require('http');
 const path = require('path');
 const { getDownloadUrl } = require('./utils/converter');
 
-const PORT = process.env.PORT || 3000;
-const TEST_MODE = process.env.TEST_MODE === 'true';
-const PUBLIC_DIR = path.join(__dirname, 'public');
-
 const app = express();
+const PORT = process.env.PORT || 10000;
+const TEST_MODE = process.env.TEST_MODE === 'true';
 
-// Middleware
+// --- 1. Hardened CORS Configuration ---
+// This fixes the "No Access-Control-Allow-Origin" error in your logs
+app.use(cors({
+    origin: '*', // Allows localhost and your deployed frontend
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true
+}));
+
 app.use(express.json());
 
-// CORS (simple, open)
-app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type');
-    if (req.method === 'OPTIONS') {
-        return res.sendStatus(200);
-    }
-    next();
-});
+// Explicitly handle OPTIONS preflight requests
+app.options('*', cors());
 
-// Serve static assets
-app.use(express.static(PUBLIC_DIR));
+// --- 2. Routes ---
 
-// Simple config endpoint so the frontend knows if test mode is enabled
-app.get('/api/config', (req, res) => {
-    res.json({ testMode: TEST_MODE });
-});
+// Health Check
+app.get('/', (req, res) => res.status(200).send('Audio Extraction Engine: ONLINE'));
 
-// API endpoint for downloads - returns download URL for browser
+// Extraction Endpoint
 app.post('/api/download', async (req, res) => {
     try {
-        const { url, format } = req.body || {};
+        const { url, format = 'mp3' } = req.body;
 
         if (!url) {
-            return res.status(400).json({ error: 'URL is required' });
+            return res.status(400).json({ success: false, error: 'YouTube URL is required' });
         }
 
-        // When running in TEST_MODE, mock the conversion and avoid real network calls
         if (TEST_MODE) {
             return res.status(200).json({
                 success: false,
                 testMode: true,
-                error: 'Conversion is disabled in this hosted demo (test mode). Run yt-rip locally for full functionality.'
+                error: 'Engine in TEST_MODE. Real conversions disabled.'
             });
         }
 
-        try {
-            const { downloadUrl, filename } = await getDownloadUrl(url, format || 'mp3');
+        console.log(`🚀 Processing: ${url}`);
+        const result = await getDownloadUrl(url, format);
 
-            // Log the direct gammacloud URL for debugging / manual testing
-            console.log('Direct download URL from gammacloud:', downloadUrl);
+        // We return the directUrl for debugging and the proxied downloadUrl for the UI
+        return res.status(200).json({
+            success: true,
+            filename: result.filename,
+            downloadUrl: `/api/stream?url=${encodeURIComponent(result.downloadUrl)}&filename=${encodeURIComponent(result.filename)}`,
+            directUrl: result.downloadUrl
+        });
 
-            return res.status(200).json({
-                success: true,
-                filename,
-                // Internal stream endpoint (what the UI uses)
-                downloadUrl: `/api/stream?url=${encodeURIComponent(downloadUrl)}&filename=${encodeURIComponent(filename)}`,
-                // Raw direct URL (for manual testing with curl/browser)
-                directUrl: downloadUrl
-            });
-        } catch (error) {
-            return res.status(200).json({
-                success: false,
-                error: error.message
-            });
-        }
     } catch (error) {
-        return res.status(400).json({ error: 'Invalid request body' });
+        console.error('❌ Extraction Failed:', error.message);
+        return res.status(500).json({ success: false, error: error.message });
     }
 });
 
-// Stream endpoint - streams file directly to browser
+// Streaming Proxy Endpoint
+// This bypasses browser security blocks by streaming the file through your server
 app.get('/api/stream', (req, res) => {
     const streamUrl = req.query.url;
-    let filename = req.query.filename || 'download';
+    let filename = req.query.filename || 'audio.mp3';
 
-    // Sanitize filename to prevent header injection
-    filename = filename.replace(/[^\w\s.-]/g, '_').replace(/\s+/g, '_');
-
-    if (!streamUrl) {
-        return res.status(400).send('Missing URL parameter');
-    }
+    if (!streamUrl) return res.status(400).send('Missing stream URL');
 
     try {
         const sourceUrl = new URL(streamUrl);
@@ -94,69 +77,34 @@ app.get('/api/stream', (req, res) => {
 
         const downloadReq = protocol.get(streamUrl, {
             headers: {
-                'accept': '*/*',
-                'accept-language': 'en-US,en;q=0.8',
-                'origin': 'https://ytmp3.as',
-                'priority': 'u=1, i',
-                'referer': 'https://ytmp3.as/',
-                'sec-fetch-dest': 'empty',
-                'sec-fetch-mode': 'cors',
-                'sec-fetch-site': 'cross-site',
-                'sec-gpc': '1',
-                'user-agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1'
+                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1',
+                'Referer': 'https://ytmp3.as/',
+                'Origin': 'https://ytmp3.as'
             }
         }, (downloadRes) => {
-            // Handle redirects
-            if (downloadRes.statusCode === 302 || downloadRes.statusCode === 301) {
-                const location = downloadRes.headers.location;
-                if (!location) {
-                    return res.status(500).send('Missing redirect location');
-                }
-                return res.redirect(302, `/api/stream?url=${encodeURIComponent(location)}&filename=${encodeURIComponent(filename)}`);
+            // Handle Redirects (Common in gammacloud nodes)
+            if ([301, 302].includes(downloadRes.statusCode)) {
+                return res.redirect(`/api/stream?url=${encodeURIComponent(downloadRes.headers.location)}&filename=${encodeURIComponent(filename)}`);
             }
 
-            const contentType = filename.endsWith('.mp3')
-                ? 'audio/mpeg'
-                : filename.endsWith('.mp4')
-                ? 'video/mp4'
-                : 'application/octet-stream';
-
             res.writeHead(200, {
-                'Content-Type': contentType,
+                'Content-Type': filename.endsWith('.mp3') ? 'audio/mpeg' : 'video/mp4',
                 'Content-Disposition': `attachment; filename="${filename}"`,
                 'Content-Length': downloadRes.headers['content-length'] || '',
                 'Cache-Control': 'no-cache'
             });
 
             downloadRes.pipe(res);
-
-            downloadRes.on('error', () => {
-                if (!res.headersSent) {
-                    res.status(500).send('Download error');
-                }
-            });
         });
 
-        downloadReq.on('error', () => {
-            if (!res.headersSent) {
-                res.status(500).send('Request error');
-            }
-        });
-
-        req.on('close', () => {
-            downloadReq.destroy();
-        });
+        downloadReq.on('error', (err) => res.status(500).send('Stream Error'));
     } catch (err) {
-        return res.status(400).send('Invalid URL');
+        res.status(400).send('Invalid Stream URL');
     }
 });
 
-// Fallback to index.html for any other route (SPA)
-app.get('*', (req, res) => {
-    res.sendFile(path.join(PUBLIC_DIR, 'index.html'));
-});
-
-app.listen(PORT, () => {
-    console.log(`Server running at http://localhost:${PORT}`);
-    console.log(`Open your browser and navigate to http://localhost:${PORT}`);
+// --- 3. Start Server ---
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`✅ Node Engine Live on Port ${PORT}`);
+    console.log(`🛠 Mode: ${TEST_MODE ? 'TEST' : 'PRODUCTION'}`);
 });
